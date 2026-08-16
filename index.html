@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CyberTrace — Security Dashboard</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="topbar">
+        <div>
+            <h1>🛡️ CyberTrace</h1>
+            <p>Real-Time Cybersecurity Monitoring</p>
+        </div>
+
+        <div id="connectionStatus" class="status offline">
+            🔴 Connecting...
+        </div>
+    </header>
+
+
+    <main class="dashboard">
+
+        <!-- SECURITY SCORE -->
+
+        <section class="score-card">
+
+            <div>
+                <p class="label">SECURITY SCORE</p>
+                <h2 id="securityScore">92</h2>
+                <span>System Protection Level</span>
+            </div>
+
+            <div class="score-icon">
+                🛡️
+            </div>
+
+        </section>
+
+    <!-- THREAT STATISTICS -->
+
+<section class="status-grid">
+
+    <div class="status-card">
+        <span>🚨</span>
+        <div>
+            <p>HIGH THREATS</p>
+            <strong id="highThreatCount">0</strong>
+        </div>
+    </div>
+
+    <div class="status-card">
+        <span>⚠️</span>
+        <div>
+            <p>MEDIUM THREATS</p>
+            <strong id="mediumThreatCount">0</strong>
+        </div>
+    </div>
+
+    <div class="status-card">
+        <span>🛡️</span>
+        <div>
+            <p>LOW THREATS</p>
+            <strong id="lowThreatCount">0</strong>
+        </div>
+    </div>
+
+</section>
+        <!-- LIVE THREAT FEED -->
+
+        <section class="panel">
+
+            <div class="panel-header">
+
+                <div>
+                    <p class="label">LIVE MONITORING</p>
+                    <h2>Threat Feed</h2>
+                </div>
+
+                <span id="threatCount" class="count">
+                    0
+                </span>
+
+            </div>
+
+
+            <!-- ONLY REAL-TIME THREATS WILL BE INSERTED HERE -->
+
+            <div id="liveThreatFeed" class="threat-list">
+
+                <div class="empty-state" id="emptyThreatMessage">
+                    🛡️
+                    <p>No real-time threats detected</p>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- SYSTEM STATUS -->
+
+        <section class="status-grid">
+
+            <div class="status-card">
+                <span>🌐</span>
+                <div>
+                    <p>Network</p>
+                    <strong id="networkStatus">Secure</strong>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <span>🔥</span>
+                <div>
+                    <p>Firewall</p>
+                    <strong id="firewallStatus">Active</strong>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <span>🤖</span>
+                <div>
+                    <p>AI Protection</p>
+                    <strong id="aiStatus">Monitoring</strong>
+                    <span id="systemTime">--:--:--</span>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- AI ANALYSIS -->
+
+        <section class="panel ai-panel">
+
+            <p class="label">AI SECURITY ANALYSIS</p>
+
+            <h2>CyberTrace Intelligence</h2>
+
+            <p>
+                AI-powered monitoring continuously analyses
+                suspicious activity and security events.
+            </p>
+
+            <button id="analysisButton">
+                Analyze Threats →
+            </button>
+
+            <div id="aiResult" class="ai-result">
+
+                <h3>🤖 AI Analysis Result</h3>
+
+                <p id="aiAssessment">
+                    Waiting for threat analysis...
+                </p>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- SOCKET.IO -->
+
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+
+    <!-- MAIN JAVASCRIPT -->
+
+    <script src="script.js"></script>
+</body>
+
+</html>
