@@ -83,7 +83,7 @@ setInterval(
 // ==========================================
 
 const socket =
-    io("http://localhost:3000");
+    io("https://cybertrace-vxzp.onrender.com");
 
 
 // ==========================================
