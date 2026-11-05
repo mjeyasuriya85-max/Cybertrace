@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="CyberTrace is a cyber security monitoring project that streams demo threat events from a Node.js and Socket.IO backend.">
+<title>CyberTrace | Cyber Security Monitoring</title>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.8.1/dist/socket.io.min.js"></script>
+<style>
+:root{
+  --bg:#07111f; --bg2:#0b1a2e; --card:#0f2038; --line:#1f3a57;
+  --text:#eaf2ff; --muted:#9fb4cb; --cyan:#35d9ff; --blue:#2f8cff;
+  --high:#ff5d5d; --med:#ffc857; --low:#46e6a1;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:80px}
+body{background:radial-gradient(1200px 600px at 50% -200px,#12315a 0%,var(--bg) 60%);background-color:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;line-height:1.6}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--cyan);color:#041320;padding:8px 14px;border-radius:6px;z-index:100}
+.skip:focus{left:8px}
+svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* NAV */
+header{position:sticky;top:0;z-index:50;background:rgba(7,17,31,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;max-width:1180px;margin:auto;padding:14px 5%}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:21px;letter-spacing:.5px;color:var(--cyan);text-decoration:none}
+.menu{display:flex;align-items:center;gap:26px;list-style:none}
+.menu a{text-decoration:none;color:var(--muted);font-size:15px;transition:color .2s}
+.menu a:hover{color:var(--text)}
+.btn{display:inline-block;text-decoration:none;background:linear-gradient(135deg,var(--blue),#0a9fd0);color:#fff;padding:12px 22px;border-radius:8px;font-weight:600;border:0;cursor:pointer;font-size:15px;font-family:inherit;transition:transform .15s,box-shadow .2s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(47,140,255,.3)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+.btn.ghost:hover{border-color:var(--cyan);box-shadow:none}
+.burger{display:none;background:none;border:1px solid var(--line);color:var(--text);padding:8px;border-radius:8px;cursor:pointer}
+
+/* HERO */
+.hero{max-width:1180px;margin:auto;padding:90px 5% 50px;display:grid;grid-template-columns:1.15fr .85fr;gap:48px;align-items:center}
+.hero h1{font-size:clamp(36px,5.4vw,60px);line-height:1.1;margin-bottom:20px;letter-spacing:-1px}
+.hero p.lead{color:var(--muted);font-size:18px;max-width:560px;margin-bottom:28px}
+.cta{display:flex;gap:14px;flex-wrap:wrap}
+.panel{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:24px}
+.status{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;padding:12px 14px;border-radius:10px;background:#0a182b;border:1px solid var(--line);margin-bottom:18px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--med);flex:none}
+.status.online .dot{background:var(--low);box-shadow:0 0 0 4px rgba(70,230,161,.18)}
+.status.offline .dot{background:var(--high)}
+.status.connecting .dot{animation:pulse 1.2s infinite}
+.status small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.stat{background:#0a182b;border:1px solid var(--line);border-radius:10px;padding:14px}
+.stat b{display:block;font-size:30px;line-height:1.1}
+.stat span{font-size:13px;color:var(--muted)}
+.stat.total b{color:var(--cyan)} .stat.high b{color:var(--high)} .stat.medium b{color:var(--med)} .stat.low b{color:var(--low)}
+
+/* SECTIONS */
+section{max-width:1180px;margin:auto;padding:70px 5%}
+section>h2{font-size:clamp(26px,3.4vw,36px);margin-bottom:10px;letter-spacing:-.5px}
+section>p.sub{color:var(--muted);max-width:640px;margin-bottom:34px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px}
+.card .ic{width:44px;height:44px;border-radius:10px;background:rgba(53,217,255,.1);color:var(--cyan);display:grid;place-items:center;margin-bottom:14px}
+.card h3{font-size:18px;margin-bottom:8px}
+.card p{color:var(--muted);font-size:15px}
+.steps{counter-reset:s;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;list-style:none}
+.steps li{counter-increment:s;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px;position:relative}
+.steps li::before{content:counter(s);display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--blue);font-weight:700;margin-bottom:12px}
+.steps h3{font-size:17px;margin-bottom:6px}
+.steps p{color:var(--muted);font-size:15px}
+.tech{display:flex;flex-wrap:wrap;gap:12px}
+.tech span{background:var(--card);border:1px solid var(--line);padding:10px 18px;border-radius:999px;font-size:15px}
+
+/* FEED */
+.feedwrap{display:grid;grid-template-columns:1.3fr .7fr;gap:20px}
+#feed{list-style:none;min-height:120px}
+.event{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 16px;margin-bottom:10px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--cyan);border-radius:8px;animation:appear .35s ease}
+.event.high{border-left-color:var(--high)} .event.medium{border-left-color:var(--med)} .event.low{border-left-color:var(--low)}
+.event .name{font-weight:600;flex:1 1 180px;overflow-wrap:anywhere}
+.badge{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid currentColor;font-weight:600}
+.badge.high{color:var(--high)} .badge.medium{color:var(--med)} .badge.low{color:var(--low)} .badge.demo{color:var(--cyan)}
+.event time{color:var(--muted);font-size:13px}
+.empty{padding:22px;text-align:center;color:var(--muted);background:var(--card);border:1px dashed var(--line);border-radius:8px}
+.note{color:var(--muted);font-size:13px;margin-top:12px}
+
+/* TOAST */
+#toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;z-index:80;max-width:min(340px,calc(100vw - 36px))}
+.toast{background:#0b1a2e;border:1px solid var(--cyan);border-left-width:4px;border-radius:10px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.45);animation:slide .35s ease;font-size:14px}
+.toast.high{border-color:var(--high)} .toast.medium{border-color:var(--med)} .toast.low{border-color:var(--low)}
+.toast small{display:block;color:var(--muted)}
+
+/* LIMITS + FORM */
+.warn{border-left:4px solid var(--med);background:var(--card);border-radius:8px;padding:22px}
+.warn ul{margin:10px 0 0 20px;color:var(--muted)}
+.warn li{margin-bottom:6px}
+form{display:grid;gap:14px;max-width:620px}
+label{font-size:14px;color:var(--muted);display:block;margin-bottom:6px}
+input,textarea{width:100%;background:#0a182b;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:12px;font:inherit}
+textarea{min-height:120px;resize:vertical}
+#formMsg{padding:12px 14px;border-radius:8px;font-size:14px;display:none}
+#formMsg.err{display:block;background:rgba(255,93,93,.1);border:1px solid var(--high)}
+#formMsg.ok{display:block;background:rgba(70,230,161,.1);border:1px solid var(--low)}
+.cl{border-top:1px solid var(--line);margin-top:20px}
+footer{border-top:1px solid var(--line);margin-top:30px}
+.foot{max-width:1180px;margin:auto;padding:30px 5%;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;color:var(--muted);font-size:14px}
+.foot nav{display:flex;gap:18px;flex-wrap:wrap}
+
+@keyframes appear{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes slide{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@keyframes pulse{50%{opacity:.3}}
+@media(max-width:900px){
+  .hero{grid-template-columns:1fr;padding-top:50px}
+  .feedwrap{grid-template-columns:1fr}
+  .burger{display:block}
+  .menu{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;align-items:flex-start;gap:0;background:var(--bg2);border-bottom:1px solid var(--line);padding:10px 5% 16px}
+  .menu.open{display:flex}
+  .menu li{width:100%} .menu a{display:block;padding:12px 0}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/></symbol>
+  <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+  <symbol id="chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0112 0c0 6 2 7 2 8H4c0-1 2-2 2-8zM10 21h4"/></symbol>
+  <symbol id="plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 01-12 0V8zM12 18v3"/></symbol>
+  <symbol id="grid" viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></symbol>
+</svg>
+
+<header>
+  <div class="nav">
+    <a class="logo" href="#top" aria-label="CyberTrace home"><svg class="i"><use href="#shield"/></svg>CYBERTRACE</a>
+    <button class="burger" id="burger" aria-label="Open menu" aria-expanded="false" aria-controls="menu">
+      <svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <ul class="menu" id="menu">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#live">Live demo</a></li>
+      <li><a href="#tech">Tech stack</a></li>
+      <li><a href="#contact">Contact</a></li>
+      <li><a class="btn" href="index.html">Open dashboard</a></li>
+    </ul>
+  </div>
+</header>
+
+<main id="main">
+<div class="hero" id="top">
+  <div>
+    <h1>See security events as they arrive.</h1>
+    <p class="lead">CyberTrace is a security monitoring project built with Node.js and Socket.IO. It streams demo threat events to a live dashboard so you can see how real-time alerting works.</p>
+    <div class="cta">
+      <a class="btn" href="#live">View live demo feed</a>
+      <a class="btn ghost" href="index.html">Open dashboard</a>
+    </div>
+  </div>
+
+  <div class="panel" aria-label="Backend status and demo statistics">
+    <div id="connection" class="status connecting" role="status" aria-live="polite">
+      <span class="dot"></span>
+      <div><span id="connText">Connecting to backend...</span><small id="connSub">The free server may take up to a minute to wake up.</small></div>
+    </div>
+    <div class="stats">
+      <div class="stat total"><b id="total">0</b><span>Total demo events</span></div>
+      <div class="stat high"><b id="high">0</b><span>High</span></div>
+      <div class="stat medium"><b id="medium">0</b><span>Medium</span></div>
+      <div class="stat low"><b id="low">0</b><span>Low</span></div>
+    </div>
+    <p class="note">Counts start at 0 each time you open this page and only include events received in this session.</p>
+  </div>
+</div>
+
+<section id="features">
+  <h2>What CyberTrace offers</h2>
+  <p class="sub">A compact set of monitoring features, built to show real-time data flow end to end.</p>
+  <div class="grid">
+    <article class="card"><div class="ic"><svg class="i"><use href="#pulse"/></svg></div><h3>Live event feed</h3><p>New demo events appear the moment the backend sends them, with name, severity and time.</p></article>
+    <article class="card"><div class="ic"><svg class="i"><use href="#chart"/></svg></div><h3>Severity counters</h3><p>See how many High, Medium and Low events arrived in your current session.</p></article>
+    <article class="card"><div class="ic"><svg class="i"><use href="#bell"/></svg></div><h3>Instant notifications</h3><p>A short alert slides in for every new event so you do not miss one while scrolling.</p></article>
+    <article class="card"><div class="ic"><svg class="i"><use href="#grid"/></svg></div><h3>Full dashboard</h3><p>The main dashboard shows the complete monitoring interface in one place.</p></article>
+  </div>
+</section>
+
+<section id="platform">
+  <h2>Platform overview</h2>
+  <p class="sub">CyberTrace has two parts that talk to each other over one WebSocket connection.</p>
+  <div class="grid">
+    <article class="card"><div class="ic"><svg class="i"><use href="#plug"/></svg></div><h3>Backend</h3><p>A Node.js and Express server on Render. It emits a <code>threatUpdate</code> event about every 10 seconds.</p></article>
+    <article class="card"><div class="ic"><svg class="i"><use href="#shield"/></svg></div><h3>Frontend</h3><p>This site and the dashboard listen to the backend with the Socket.IO client and update the page instantly.</p></article>
+  </div>
+</section>
+
+<section id="how">
+  <h2>How it works</h2>
+  <p class="sub">From server event to your screen in four steps.</p>
+  <ol class="steps">
+    <li><h3>Backend generates an event</h3><p>The server creates a demo event with a name and a severity level.</p></li>
+    <li><h3>Socket.IO sends it</h3><p>The event is broadcast on the <code>threatUpdate</code> channel.</p></li>
+    <li><h3>Browser receives it</h3><p>This page checks the data is valid before using it.</p></li>
+    <li><h3>Screen updates</h3><p>The feed, counters and notification update together.</p></li>
+  </ol>
+</section>
+
+<section id="live">
+  <h2>Live demo event feed</h2>
+  <p class="sub">Showing the latest 8 events. Every event here is a DEMO EVENT created by the backend, not a real attack.</p>
+  <div class="feedwrap">
+    <div>
+      <ul id="feed" aria-live="polite" aria-label="Latest demo events"><li class="empty" id="emptyState">Waiting for the first demo event...</li></ul>
+      <p class="note">Demo events only. CyberTrace does not detect real-world attacks.</p>
+    </div>
+    <div class="card">
+      <h3>Severity guide</h3>
+      <p style="margin:10px 0"><span class="badge high">HIGH</span> Needs attention first.</p>
+      <p style="margin-bottom:10px"><span class="badge medium">MEDIUM</span> Worth reviewing.</p>
+      <p><span class="badge low">LOW</span> Informational.</p>
+    </div>
+  </div>
+</section>
+
+<section id="tech">
+  <h2>Technology stack</h2>
+  <p class="sub">Free, widely used tools only.</p>
+  <div class="tech"><span>Node.js</span><span>Express</span><span>Socket.IO</span><span>HTML, CSS, JavaScript</span><span>Render hosting</span><span>VS Code</span></div>
+</section>
+
+<section id="limits">
+  <h2>Limitations</h2>
+  <div class="warn">
+    <strong>Please read before you rely on this project.</strong>
+    <ul>
+      <li>All events are generated demo events. They are not real cyberattacks or real threat detection.</li>
+      <li>Counters and the feed reset when you reload the page. Events are not stored.</li>
+      <li>The backend runs on a free Render plan, so the first connection after idle time can take up to a minute.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="contact">
+  <h2>Send an enquiry</h2>
+  <p class="sub">Ask a question about the project.</p>
+  <form id="contactForm" novalidate>
+    <div><label for="cName">Name</label><input id="cName" name="name" type="text" autocomplete="name" required maxlength="80"></div>
+    <div><label for="cEmail">Email</label><input id="cEmail" name="email" type="email" autocomplete="email" required maxlength="120"></div>
+    <div><label for="cMsg">Message</label><textarea id="cMsg" name="message" required maxlength="1000"></textarea></div>
+    <div id="formMsg" role="status" aria-live="polite"></div>
+    <button class="btn" type="submit" id="sendBtn">Send message</button>
+  </form>
+</section>
+
+<section class="cl" style="text-align:center">
+  <h2>Ready to see the full interface?</h2>
+  <p class="sub" style="margin:0 auto 24px">The dashboard has every monitoring feature in one screen.</p>
+  <a class="btn" href="index.html">Open dashboard</a>
+</section>
+</main>
+
+<footer>
+  <div class="foot">
+    <div>&copy; 2026 CyberTrace. A cyber security monitoring project. Demo events only.</div>
+    <nav aria-label="Footer"><a href="#features">Features</a><a href="#live">Live demo</a><a href="#contact">Contact</a><a href="index.html">Dashboard</a></nav>
+  </div>
+</footer>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ===== CONFIG ===== */
+  var BACKEND_URL = "https://cybertrace-vxzp.onrender.com";
+  // Contact form endpoint. Keep empty until server.js has a real route (example: "/api/contact").
+  var CONTACT_ENDPOINT = "https://cybertrace-vxzp.onrender.com/api/contact";
+  var MAX_EVENTS = 8;
+  var SEVERITIES = ["HIGH", "MEDIUM", "LOW"];
+
+  /* ===== ELEMENTS ===== */
+  var $ = function (id) { return document.getElementById(id); };
+  var box = $("connection"), connText = $("connText"), connSub = $("connSub");
+  var feed = $("feed"), toasts = $("toasts");
+  var counters = { total: $("total"), HIGH: $("high"), MEDIUM: $("medium"), LOW: $("low") };
+  var count = { total: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+
+  /* ===== MENU ===== */
+  var burger = $("burger"), menu = $("menu");
+  burger.addEventListener("click", function () {
+    var open = menu.classList.toggle("open");
+    burger.setAttribute("aria-expanded", String(open));
+  });
+  menu.addEventListener("click", function (e) {
+    if (e.target.tagName === "A") { menu.classList.remove("open"); burger.setAttribute("aria-expanded", "false"); }
+  });
+
+  /* ===== STATUS ===== */
+  function setStatus(state, text, sub) {
+    box.className = "status " + state;
+    connText.textContent = text;
+    connSub.textContent = sub;
+  }
+
+  /* ===== EVENT HANDLING ===== */
+  function validate(threat) {
+    if (!threat || typeof threat !== "object") return null;
+    if (typeof threat.name !== "string" || !threat.name.trim()) return null;
+    var sev = String(threat.severity || "").toUpperCase();
+    if (SEVERITIES.indexOf(sev) === -1) return null;
+    return { name: threat.name.trim().slice(0, 120), severity: sev };
+  }
+
+  function badge(cls, text) {
+    var b = document.createElement("span");
+    b.className = "badge " + cls;
+    b.textContent = text;
+    return b;
+  }
+
+  function addToast(ev, time) {
+    var t = document.createElement("div");
+    t.className = "toast " + ev.severity.toLowerCase();
+    var s = document.createElement("strong");
+    s.textContent = "New demo event: " + ev.name;
+    var sm = document.createElement("small");
+    sm.textContent = ev.severity + " severity at " + time;
+    t.appendChild(s); t.appendChild(sm);
+    toasts.appendChild(t);
+    setTimeout(function () { t.remove(); }, 4000);
+    while (toasts.children.length > 3) toasts.firstElementChild.remove();
+  }
+
+  function onThreat(threat) {
+    var ev = validate(threat);
+    if (!ev) { console.warn("Ignored invalid event:", threat); return; }
+
+    count.total++; count[ev.severity]++;
+    counters.total.textContent = count.total;
+    counters[ev.severity].textContent = count[ev.severity];
+
+    var empty = $("emptyState");
+    if (empty) empty.remove();
+
+    var time = new Date().toLocaleTimeString();
+    var li = document.createElement("li");
+    li.className = "event " + ev.severity.toLowerCase();
+    var name = document.createElement("span");
+    name.className = "name";
+    name.textContent = ev.name;
+    var tm = document.createElement("time");
+    tm.textContent = time;
+    li.appendChild(name);
+    li.appendChild(badge(ev.severity.toLowerCase(), ev.severity));
+    li.appendChild(badge("demo", "DEMO EVENT"));
+    li.appendChild(tm);
+    feed.prepend(li);
+    while (feed.children.length > MAX_EVENTS) feed.lastElementChild.remove();
+
+    addToast(ev, time);
+  }
+
+  /* ===== SOCKET.IO (created once, listeners attached once) ===== */
+  if (typeof io !== "function") {
+    setStatus("offline", "Socket.IO library failed to load", "Check your internet connection and reload the page.");
+    return;
+  }
+
+  var socket = io(BACKEND_URL, {
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 10000
+  });
+
+  socket.on("connect", function () {
+    console.log("Connected to backend, id:", socket.id);
+    setStatus("online", "Connected to backend", "Waiting for demo events (about every 10 seconds).");
+  });
+  socket.on("disconnect", function (reason) {
+    console.log("Disconnected:", reason);
+    setStatus("offline", "Disconnected from backend", "Reason: " + reason + ". Reconnecting automatically...");
+  });
+  socket.on("connect_error", function (err) {
+    console.error("Connection error:", err.message);
+    setStatus("offline", "Cannot reach backend", "The server may be waking up. Retrying automatically...");
+  });
+  socket.io.on("reconnect_attempt", function () {
+    setStatus("connecting", "Reconnecting...", "Trying to reach the backend again.");
+  });
+  socket.on("threatUpdate", onThreat);
+
+  /* ===== CONTACT FORM (no fake success) ===== */
+  var form = $("contactForm"), msg = $("formMsg"), sendBtn = $("sendBtn");
+  function show(cls, text) { msg.className = cls; msg.textContent = text; }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var data = {
+      name: form.name.value.trim(),
+      email: form.email.value.trim(),
+      message: form.message.value.trim()
+    };
+    if (!data.name || !data.message || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      show("err", "Please enter your name, a valid email and a message.");
+      return;
+    }
+    if (!CONTACT_ENDPOINT) {
+      show("err", "Your message was NOT sent. The backend does not have a contact endpoint yet.");
+      return;
+    }
+    sendBtn.disabled = true;
+    show("ok", "Sending...");
+    fetch(CONTACT_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    }).then(function (res) {
+      if (!res.ok) throw new Error("Server returned " + res.status);
+      show("ok", "Message sent. Thank you.");
+      form.reset();
+    }).catch(function (err) {
+      show("err", "Message not sent: " + err.message + ". Please try again later.");
+    }).finally(function () { sendBtn.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>
