@@ -1,853 +1,170 @@
-// ==========================================
-// CYBERTRACE - REAL-TIME SECURITY DASHBOARD
-// ==========================================
+(function () {
+    "use strict";
 
+    // ===== CONFIG =====
+    var BACKEND_URL = "https://cybertrace-vxzp.onrender.com";
+    var MAX_EVENTS = 20;
+    var SEVERITIES = ["HIGH", "MEDIUM", "LOW"];
 
-// ==========================================
-// DOM ELEMENTS
-// ==========================================
+    // ===== ELEMENTS =====
+    function $(id) { return document.getElementById(id); }
 
-const liveThreatFeed =
-    document.getElementById("liveThreatFeed");
+    var connectionStatus = $("connectionStatus");
+    var networkStatus = $("networkStatus");
+    var feed = $("liveThreatFeed");
+    var threatCount = $("threatCount");
+    var securityScore = $("securityScore");
+    var scoreNote = $("scoreNote");
+    var systemTime = $("systemTime");
+    var analysisButton = $("analysisButton");
+    var aiAssessment = $("aiAssessment");
 
-const threatCount =
-    document.getElementById("threatCount");
+    var counters = {
+        HIGH: $("highThreatCount"),
+        MEDIUM: $("mediumThreatCount"),
+        LOW: $("lowThreatCount")
+    };
 
-const connectionStatus =
-    document.getElementById("connectionStatus");
+    var count = { total: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+    var byName = {};
 
-const highThreatCount =
-    document.getElementById("highThreatCount");
+    // ===== REAL CLOCK =====
+    function tick() {
+        if (systemTime) systemTime.textContent = new Date().toLocaleTimeString();
+    }
+    tick();
+    setInterval(tick, 1000);
 
-const mediumThreatCount =
-    document.getElementById("mediumThreatCount");
-
-const lowThreatCount =
-    document.getElementById("lowThreatCount");
-
-const emptyThreatMessage =
-    document.getElementById("emptyThreatMessage");
-
-const securityScore =
-    document.getElementById("securityScore");
-
-const analysisButton =
-    document.getElementById("analysisButton");
-
-const aiResult =
-    document.getElementById("aiResult");
-
-const aiAssessment =
-    document.getElementById("aiAssessment");
-
-const systemTime =
-    document.getElementById("systemTime");
-// ==========================================
-// THREAT STORAGE
-// ==========================================
-
-let threats = [];
-
-// ==========================================
-// LIVE SYSTEM CLOCK
-// ==========================================
-
-function updateSystemTime() {
-
-    if (!systemTime) {
-        return;
+    // ===== CONNECTION STATUS =====
+    function setConnection(cls, text, linkText) {
+        connectionStatus.className = "status " + cls;
+        connectionStatus.textContent = text;
+        networkStatus.textContent = linkText;
     }
 
-
-    const now =
-        new Date();
-
-
-    systemTime.textContent =
-        now.toLocaleTimeString();
-
-}
-
-
-updateSystemTime();
-
-
-setInterval(
-    updateSystemTime,
-    1000
-);
-
-
-// ==========================================
-// SOCKET.IO CONNECTION
-// ==========================================
-
-const socket =
-    io("https://cybertrace-vxzp.onrender.com");
-
-
-// ==========================================
-// SOCKET CONNECTED
-// ==========================================
-
-socket.on("connect", () => {
-
-    console.log(
-        "🟢 CyberTrace connected to real-time server"
-    );
-
-
-    if (connectionStatus) {
-
-        connectionStatus.textContent =
-            "🟢 LIVE";
-
-
-        connectionStatus.classList.remove(
-            "offline"
-        );
-
-
-        connectionStatus.classList.add(
-            "online"
-        );
-
+    // ===== DEMO SCORE (simple formula, only from received demo events) =====
+    function updateScore() {
+        var score = 100 - (count.HIGH * 5 + count.MEDIUM * 2 + count.LOW * 0.5);
+        score = Math.max(0, Math.round(score));
+        securityScore.textContent = String(score);
+        scoreNote.textContent = "Demo score: starts at 100, minus 5 per High, 2 per Medium, 0.5 per Low demo event.";
     }
 
-});
-
-
-// ==========================================
-// SOCKET DISCONNECTED
-// ==========================================
-
-socket.on("disconnect", () => {
-
-    console.log(
-        "🔴 CyberTrace disconnected from server"
-    );
-
-
-    if (connectionStatus) {
-
-        connectionStatus.textContent =
-            "🔴 OFFLINE";
-
-
-        connectionStatus.classList.remove(
-            "online"
-        );
-
-
-        connectionStatus.classList.add(
-            "offline"
-        );
-
+    // ===== EVENT VALIDATION =====
+    function validate(threat) {
+        if (!threat || typeof threat !== "object") return null;
+        if (typeof threat.name !== "string" || !threat.name.trim()) return null;
+        var sev = String(threat.severity || "").toUpperCase();
+        if (SEVERITIES.indexOf(sev) === -1) return null;
+        var desc = typeof threat.description === "string" ? threat.description.trim().slice(0, 200) : "";
+        return { name: threat.name.trim().slice(0, 120), severity: sev, description: desc };
     }
 
-});
+    function tag(cls, text) {
+        var s = document.createElement("span");
+        s.className = "tag " + cls;
+        s.textContent = text;
+        return s;
+    }
 
-
-// ==========================================
-// REAL-TIME THREAT UPDATE
-// ==========================================
-
-socket.on(
-    "threatUpdate",
-    (threat) => {
-
-
-        console.log(
-            "🚨 Real-Time Threat Received:",
-            threat
-        );
-
-
-        // ======================================
-        // CHECK THREAT
-        // ======================================
-
-        if (!threat) {
-
+    // ===== HANDLE EVENT =====
+    function onThreat(threat) {
+        var ev = validate(threat);
+        if (!ev) {
+            console.warn("Ignored invalid event:", threat);
             return;
-
         }
 
+        count.total++;
+        count[ev.severity]++;
+        byName[ev.name] = (byName[ev.name] || 0) + 1;
 
-        // ======================================
-        // HIGH THREAT ALERT
-        // ======================================
+        counters[ev.severity].textContent = count[ev.severity];
+        threatCount.textContent = count.total;
+        updateScore();
 
-        if (
-            threat.severity === "HIGH"
-        ) {
-            // ==================================
-            // VISUAL ALERT
-            // ==================================
+        var empty = $("emptyThreatMessage");
+        if (empty) empty.remove();
 
-            const threatAlert =
-                document.getElementById(
-                    "threatAlert"
-                );
+        var item = document.createElement("div");
+        item.className = "threat-item " + ev.severity.toLowerCase();
 
-
-            const alertMessage =
-                document.getElementById(
-                    "alertMessage"
-                );
-
-
-            if (
-                threatAlert &&
-                alertMessage
-            ) {
-
-                alertMessage.textContent =
-                    ` — ${
-                        threat.name ||
-                        "High Threat Detected"
-                    }`;
-
-
-                threatAlert.classList.add(
-                    "show"
-                );
-
-
-                setTimeout(
-                    () => {
-
-                        threatAlert.classList.remove(
-                            "show"
-                        );
-
-                    },
-                    5000
-                );
-
-            }
-
+        var main = document.createElement("div");
+        main.className = "t-main";
+        var title = document.createElement("strong");
+        title.textContent = ev.name;
+        main.appendChild(title);
+        if (ev.description) {
+            var small = document.createElement("small");
+            small.textContent = ev.description;
+            main.appendChild(small);
         }
 
+        var time = document.createElement("time");
+        time.textContent = new Date().toLocaleTimeString();
 
-        // ======================================
-        // ADD THREAT
-        // ======================================
+        item.appendChild(main);
+        item.appendChild(tag("sev-" + ev.severity.toLowerCase(), ev.severity));
+        item.appendChild(tag("demo", "DEMO EVENT"));
+        item.appendChild(time);
 
-        threats.unshift(
-            threat
-        );
-
-
-        // ======================================
-        // KEEP ONLY 5 THREATS
-        // ======================================
-
-        if (
-            threats.length > 5
-        ) {
-
-            threats.pop();
-
+        feed.prepend(item);
+        while (feed.children.length > MAX_EVENTS) {
+            feed.lastElementChild.remove();
         }
-
-
-        // ======================================
-        // UPDATE THREAT FEED
-        // ======================================
-
-        renderThreats();
-
-
-        // ======================================
-        // UPDATE SECURITY SCORE
-        // ======================================
-
-        updateSecurityScore(
-            threat
-        );
-
     }
-);
 
+    // ===== SUMMARY BUTTON (count-based, no AI) =====
+    analysisButton.addEventListener("click", function () {
+        if (count.total === 0) {
+            aiAssessment.textContent = "No demo events received yet. Wait for the first event and try again.";
+            return;
+        }
+        var top = "";
+        var topCount = 0;
+        Object.keys(byName).forEach(function (n) {
+            if (byName[n] > topCount) { top = n; topCount = byName[n]; }
+        });
+        aiAssessment.textContent =
+            "Received " + count.total + " demo events: " +
+            count.HIGH + " High, " + count.MEDIUM + " Medium, " + count.LOW + " Low. " +
+            "Most frequent: " + top + " (" + topCount + "). " +
+            "This is a simple count of demo events, not a real security assessment.";
+    });
 
-// ==========================================
-// RENDER THREATS
-// ==========================================
-
-function renderThreats() {
-
-    if (!liveThreatFeed) {
-
+    // ===== SOCKET.IO (one connection, listeners attached once) =====
+    if (typeof io !== "function") {
+        setConnection("offline", "🔴 Socket.IO library failed to load", "Unavailable");
         return;
-
     }
 
-
-    // ======================================
-    // CLEAR FEED
-    // ======================================
-
-    liveThreatFeed.innerHTML = "";
-
-
-    // ======================================
-    // NO THREATS
-    // ======================================
-
-    if (
-        threats.length === 0
-    ) {
-
-        liveThreatFeed.innerHTML = `
-
-            <div class="empty-state">
-
-                <div>
-                    🛡️
-                </div>
-
-                <p>
-                    No real-time threats detected
-                </p>
-
-            </div>
-
-        `;
-
-
-        if (threatCount) {
-
-            threatCount.textContent =
-                "0";
-
-        }
-
-
-        updateThreatCounters();
-
-        return;
-
-    }
-
-
-    // ======================================
-    // UPDATE COUNTERS
-    // ======================================
-
-    updateThreatCounters();
-
-
-    // ======================================
-    // RENDER THREATS
-    // ======================================
-
-    threats.forEach(
-        (threat) => {
-
-
-            const threatRow =
-                document.createElement(
-                    "div"
-                );
-
-
-            threatRow.className =
-                "threat-row";
-
-
-            // ==================================
-            // SEVERITY
-            // ==================================
-
-            let severityClass =
-                "low";
-
-
-            let icon =
-                "🛡️";
-
-
-            if (
-                threat.severity === "HIGH"
-            ) {
-
-                severityClass =
-                    "high";
-
-                icon =
-                    "🚨";
-
-            }
-
-
-            else if (
-                threat.severity === "MEDIUM"
-            ) {
-
-                severityClass =
-                    "medium";
-
-                icon =
-                    "⚠️";
-
-            }
-
-
-            // ==================================
-            // THREAT DATA
-            // ==================================
-
-            const threatName =
-                threat.name ||
-                "Unknown Threat";
-
-
-            const threatDescription =
-                threat.description ||
-                "Suspicious activity detected";
-
-
-            const threatSeverity =
-                threat.severity ||
-                "LOW";
-
-
-            // ==================================
-            // THREAT HTML
-            // ==================================
-
-            threatRow.innerHTML = `
-
-                <div class="threat-info">
-
-                    <div class="threat-icon ${severityClass}">
-                        ${icon}
-                    </div>
-
-
-                    <div>
-
-                        <h3>
-                            ${threatName}
-                        </h3>
-
-
-                        <p>
-                            ${threatDescription}
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                <span
-                    class="severity ${severityClass}"
-                >
-                    ${threatSeverity}
-                </span>
-
-
-                <span class="threat-time">
-                    REAL-TIME
-                </span>
-
-            `;
-
-
-            // ==================================
-            // ADD TO FEED
-            // ==================================
-
-            liveThreatFeed.appendChild(
-                threatRow
-            );
-
-        }
-    );
-
-
-    // ======================================
-    // TOTAL THREAT COUNT
-    // ======================================
-
-    if (threatCount) {
-
-        threatCount.textContent =
-            threats.length;
-
-    }
-
-}
-
-
-// ==========================================
-// THREAT COUNTERS
-// ==========================================
-
-function updateThreatCounters() {
-
-
-    let highCount =
-        0;
-
-
-    let mediumCount =
-        0;
-
-
-    let lowCount =
-        0;
-
-
-    threats.forEach(
-        (threat) => {
-
-
-            if (
-                threat.severity === "HIGH"
-            ) {
-
-                highCount++;
-
-            }
-
-
-            else if (
-                threat.severity === "MEDIUM"
-            ) {
-
-                mediumCount++;
-
-            }
-
-
-            else {
-
-                lowCount++;
-
-            }
-
-        }
-    );
-
-
-    if (highThreatCount) {
-
-        highThreatCount.textContent =
-            highCount;
-
-    }
-
-
-    if (mediumThreatCount) {
-
-        mediumThreatCount.textContent =
-            mediumCount;
-
-    }
-
-
-    if (lowThreatCount) {
-
-        lowThreatCount.textContent =
-            lowCount;
-
-    }
-
-}
-
-
-// ==========================================
-// SECURITY SCORE
-// ==========================================
-
-function updateSecurityScore(
-    threat
-) {
-
-
-    if (!securityScore) {
-
-        return;
-
-    }
-
-
-    let score =
-        parseInt(
-            securityScore.textContent
-        ) || 100;
-
-
-    // ======================================
-    // SCORE REDUCTION
-    // ======================================
-
-    if (
-        threat.severity === "HIGH"
-    ) {
-
-        score -= 5;
-
-    }
-
-
-    else if (
-        threat.severity === "MEDIUM"
-    ) {
-
-        score -= 3;
-
-    }
-
-
-    else {
-
-        score -= 1;
-
-    }
-
-
-    // ======================================
-    // MINIMUM SCORE
-    // ======================================
-
-    score =
-        Math.max(
-            score,
-            0
-        );
-
-
-    // ======================================
-    // UPDATE SCORE
-    // ======================================
-
-    securityScore.textContent =
-        score;
-
-
-    // ======================================
-    // SCORE CARD
-    // ======================================
-
-    const scoreCard =
-        securityScore.closest(
-            ".score-card"
-        );
-
-
-    if (scoreCard) {
-
-
-        scoreCard.classList.remove(
-            "score-safe",
-            "score-warning",
-            "score-critical"
-        );
-
-
-        if (
-            score >= 70
-        ) {
-
-            scoreCard.classList.add(
-                "score-safe"
-            );
-
-        }
-
-
-        else if (
-            score >= 40
-        ) {
-
-            scoreCard.classList.add(
-                "score-warning"
-            );
-
-        }
-
-
-        else {
-
-            scoreCard.classList.add(
-                "score-critical"
-            );
-
-        }
-
-    }
-
-
-    console.log(
-        `🛡️ Security Score Updated: ${score}/100`
-    );
-
-}
-
-
-// ==========================================
-// AI ANALYSIS BUTTON
-// ==========================================
-
-if (analysisButton) {
-
-    analysisButton.addEventListener(
-        "click",
-        () => {
-
-
-            // ==================================
-            // SHOW AI RESULT
-            // ==================================
-
-            if (aiResult) {
-
-                aiResult.classList.add(
-                    "show"
-                );
-
-            }
-
-
-            // ==================================
-            // NO THREATS
-            // ==================================
-
-            if (
-                threats.length === 0
-            ) {
-
-
-                if (aiAssessment) {
-
-                    aiAssessment.textContent =
-                        "System is currently secure. No real-time threats have been detected.";
-
-                }
-
-
-                return;
-
-            }
-
-
-            // ==================================
-            // LATEST THREAT
-            // ==================================
-
-            const latest =
-                threats[0];
-
-
-            let riskScore =
-                35;
-
-
-            let recommendation =
-                "";
-
-
-            // ==================================
-            // HIGH
-            // ==================================
-
-            if (
-                latest.severity === "HIGH"
-            ) {
-
-                riskScore =
-                    92;
-
-
-                recommendation =
-                    "Immediately investigate login logs, enable MFA, and isolate affected accounts.";
-
-            }
-
-
-            // ==================================
-            // MEDIUM
-            // ==================================
-
-            else if (
-                latest.severity === "MEDIUM"
-            ) {
-
-                riskScore =
-                    68;
-
-
-                recommendation =
-                    "Monitor network activity, verify connected devices, and review firewall events.";
-
-            }
-
-
-            // ==================================
-            // LOW
-            // ==================================
-
-            else {
-
-                riskScore =
-                    28;
-
-
-                recommendation =
-                    "Threat was contained successfully. Continue routine monitoring.";
-
-            }
-
-
-            // ==================================
-            // AI RESULT
-            // ==================================
-
-            if (aiAssessment) {
-
-                aiAssessment.textContent =
-
-                    `Threat: ${
-                        latest.name ||
-                        "Unknown"
-                    } | ` +
-
-                    `Severity: ${
-                        latest.severity ||
-                        "LOW"
-                    } | ` +
-
-                    `Risk Score: ${
-                        riskScore
-                    }/100.\n\n` +
-
-                    `AI Recommendation: ${
-                        recommendation
-                    }`;
-
-            }
-
-        }
-    );
-
-}
-
-
-// ==========================================
-// INITIAL UI
-// ==========================================
-
-renderThreats();
-
-
-// ==========================================
-// CYBERTRACE READY
-// ==========================================
-
-console.log(
-    "🟢 CyberTrace dashboard initialized successfully"
-);
+    setConnection("offline", "🟡 Connecting...", "Connecting");
+
+    var socket = io(BACKEND_URL, {
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 10000
+    });
+
+    socket.on("connect", function () {
+        console.log("Dashboard connected:", socket.id);
+        setConnection("online", "🟢 Connected to backend", "Connected");
+    });
+
+    socket.on("disconnect", function (reason) {
+        console.log("Dashboard disconnected:", reason);
+        setConnection("offline", "🔴 Disconnected", "Disconnected");
+    });
+
+    socket.on("connect_error", function (err) {
+        console.error("Connection error:", err.message);
+        setConnection("offline", "🔴 Cannot reach backend. Retrying...", "Unreachable");
+    });
+
+    socket.io.on("reconnect_attempt", function () {
+        setConnection("offline", "🟡 Reconnecting...", "Reconnecting");
+    });
+
+    socket.on("threatUpdate", onThreat);
+})();
